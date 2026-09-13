@@ -23,7 +23,7 @@ function render_state(state: Record<string, unknown>): string
     lines.push('orbital controller (angles in DEGREES, zoom normalised 0-1):');
     lines.push(`  tilt        ${String(orbit.tilt ?? '?')}`);
     lines.push(`  orientation ${String(orbit.orientation ?? '?')}`);
-    lines.push(`  azimuth     ${String(orbit.azimuth ?? '?')}`);
+    lines.push(`  azimuth     ${String(orbit.azimuth ?? '?')}  (inert: build_rotation ignores azimuth)`);
     lines.push(`  zoom        ${String(orbit.zoom ?? '?')}  (min ${String(orbit.min_zoom ?? '?')}, max ${String(orbit.max_zoom ?? '?')})`);
     lines.push(`  target      ${triple(orbit.target)}`);
   }
@@ -139,7 +139,7 @@ export function register_camera_tools(server: McpServer, host: BridgeHost): void
       inputSchema: {
         tilt: z.number().optional().describe('Vertical orbit angle in DEGREES.'),
         orientation: z.number().optional().describe('Horizontal orbit angle in DEGREES.'),
-        azimuth: z.number().optional().describe('Azimuth in DEGREES.'),
+        azimuth: z.number().optional().describe('Azimuth in DEGREES. INERT: CameraController.build_rotation ignores azimuth, so this is stored on the controller but does not move the camera. Kept for when core wires it up.'),
         zoom: z.number().min(0).max(1).optional().describe('Normalised zoom, 0 is farthest and 1 is nearest.'),
         fov: z.number().positive().max(179).optional().describe('Field of view in degrees; refreshes the projection matrix.'),
         target: z.array(z.number()).length(3).optional().describe('[x, y, z] point the camera orbits around.'),
