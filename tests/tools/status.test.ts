@@ -3,7 +3,7 @@ import { BridgeError } from '../../src/bridge/BridgeError.js';
 import { build_status_report } from '../../src/tools/status.js';
 
 const app_info = {
-  core_version: '13.3.0',
+  core_version: '14.0.0',
   components_version: '4.1.0',
   pit_version: '5.0.4',
   active_view: 'home',
@@ -38,7 +38,7 @@ describe('build_status_report', () =>
 
     expect(report).toContain('connected');
     expect(report).toContain('landing');
-    expect(report).toContain('13.3.0');
+    expect(report).toContain('14.0.0');
   });
 
   it('falls back to handshake info when the live probe fails', async () =>
