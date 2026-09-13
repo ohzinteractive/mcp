@@ -3,6 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BridgeHost } from './bridge/BridgeHost.js';
 import { resolve_port } from './config.js';
+import { register_camera_tools } from './tools/camera.js';
 import { register_capture_tool } from './tools/capture.js';
 import { register_console_tool } from './tools/console.js';
 import { register_scene_tools } from './tools/scene.js';
@@ -23,6 +24,7 @@ async function main(): Promise<void>
   register_capture_tool(server, host);
   register_console_tool(server, host);
   register_scene_tools(server, host);
+  register_camera_tools(server, host);
 
   const shutdown = async () =>
   {

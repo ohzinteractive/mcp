@@ -1,19 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { BridgeHost } from '../bridge/BridgeHost.js';
-import { CAPTURE_TIMEOUT_MS } from '../config.js';
+import type { ImageBlock, TextBlock, ToolHost, ToolResult } from './shared.js';
+import { attach_capture, describe_error, failure, not_connected, text_or as text, triple } from './shared.js';
 
-type SceneHost = Pick<BridgeHost, 'connected' | 'send'>;
+export type SceneToolResult = ToolResult;
 
-type ImageBlock = { type: 'image'; data: string; mimeType: string };
-type TextBlock = { type: 'text'; text: string };
-
-export interface SceneToolResult
-{
-  [key: string]: unknown;
-  content: Array<ImageBlock | TextBlock>;
-  isError?: boolean;
-}
+type SceneHost = ToolHost;
 
 interface SceneNode
 {
@@ -28,35 +21,6 @@ interface SceneNode
   vertices?: unknown;
   children?: unknown;
   truncated?: unknown;
-}
-
-function failure(text: string): SceneToolResult
-{
-  return { content: [{ type: 'text', text }], isError: true };
-}
-
-function not_connected(): SceneToolResult
-{
-  return failure('OHZI app: not connected. Start the dev server with `yarn start`, load the page, then try again.');
-}
-
-function describe_error(error: unknown): string
-{
-  const details = error as { code?: string; message?: string };
-  const code = details.code === undefined ? 'unknown' : details.code;
-  const message = details.message === undefined ? 'no message' : details.message;
-
-  return `(${code}): ${message}`;
-}
-
-function triple(value: unknown): string
-{
-  return Array.isArray(value) ? value.join(', ') : '?';
-}
-
-function text(value: unknown, fallback: string): string
-{
-  return typeof value === 'string' ? value : fallback;
 }
 
 // Indented text rather than JSON: the same information at a fraction of the
@@ -286,23 +250,9 @@ export async function build_set_object_result(host: SceneHost, args: SetObjectAr
 
   const content: Array<ImageBlock | TextBlock> = [];
 
-  // Act and see in one call: without this every tweak costs two round trips.
   if (capture === true)
   {
-    try
-    {
-      const shot = await host.send('capture_viewport', {}, CAPTURE_TIMEOUT_MS) as { data?: unknown; mime_type?: unknown };
-
-      if (typeof shot.data === 'string' && shot.data.length > 0)
-      {
-        content.push({ type: 'image', data: shot.data, mimeType: text(shot.mime_type, 'image/png') });
-      }
-    }
-    catch (error)
-    {
-      // The change already succeeded; a failed screenshot must not hide that.
-      content.push({ type: 'text', text: `The change applied, but the follow-up capture failed ${describe_error(error)}` });
-    }
+    await attach_capture(host, content);
   }
 
   content.push({ type: 'text', text: render_detail(payload as Record<string, unknown>) });
