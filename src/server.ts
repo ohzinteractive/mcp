@@ -6,7 +6,9 @@ import { resolve_port } from './config.js';
 import { register_camera_tools } from './tools/camera.js';
 import { register_capture_tool } from './tools/capture.js';
 import { register_console_tool } from './tools/console.js';
+import { register_render_tools } from './tools/render.js';
 import { register_scene_tools } from './tools/scene.js';
+import { register_view_tools } from './tools/views.js';
 import { register_status_tool } from './tools/status.js';
 
 async function main(): Promise<void>
@@ -25,6 +27,8 @@ async function main(): Promise<void>
   register_console_tool(server, host);
   register_scene_tools(server, host);
   register_camera_tools(server, host);
+  register_render_tools(server, host);
+  register_view_tools(server, host);
 
   const shutdown = async () =>
   {
