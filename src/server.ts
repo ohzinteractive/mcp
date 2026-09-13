@@ -3,6 +3,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { BridgeHost } from './bridge/BridgeHost.js';
 import { resolve_port } from './config.js';
+import { register_capture_tool } from './tools/capture.js';
+import { register_console_tool } from './tools/console.js';
 import { register_status_tool } from './tools/status.js';
 
 async function main(): Promise<void>
@@ -17,6 +19,8 @@ async function main(): Promise<void>
   const server = new McpServer({ name: 'ohzi-mcp', version: '0.1.0' });
 
   register_status_tool(server, host);
+  register_capture_tool(server, host);
+  register_console_tool(server, host);
 
   const shutdown = async () =>
   {
