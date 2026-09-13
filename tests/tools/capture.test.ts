@@ -72,6 +72,36 @@ describe('build_capture_result', () =>
     expect(sent.args).toEqual({});
   });
 
+  it('forwards max_size', async () =>
+  {
+    const sent: Sent = {};
+    await build_capture_result(host_returning(payload, sent), { max_size: 640 });
+
+    expect(sent.args).toEqual({ max_size: 640 });
+  });
+
+  it('says what the capture was downscaled from', async () =>
+  {
+    const scaled = { ...payload, width: 1280, height: 1182, scaled_from: { width: 1668, height: 1540 } };
+    const result = await build_capture_result(host_returning(scaled), {});
+
+    const text = result.content.find((c) => c.type === 'text');
+    const rendered = text && 'text' in text ? text.text : '';
+
+    expect(rendered).toContain('1280x1182');
+    expect(rendered).toContain('1668x1540');
+    expect(rendered.toLowerCase()).toContain('downscaled');
+  });
+
+  it('omits the downscale note when the capture is native', async () =>
+  {
+    const result = await build_capture_result(host_returning(payload), {});
+    const text = result.content.find((c) => c.type === 'text');
+    const rendered = text && 'text' in text ? text.text : '';
+
+    expect(rendered.toLowerCase()).not.toContain('downscaled');
+  });
+
   it('reports an error when the app is not connected', async () =>
   {
     const result = await build_capture_result(host_returning(payload, {}, false), {});

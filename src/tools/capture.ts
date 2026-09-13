@@ -10,6 +10,7 @@ export interface CaptureArgs
   mode?: 'fast' | 'hires';
   width?: number;
   height?: number;
+  max_size?: number;
 }
 
 type ImageBlock = { type: 'image'; data: string; mimeType: string };
@@ -32,6 +33,7 @@ interface CapturePayload
   height: number;
   bytes: number;
   data: string;
+  scaled_from?: { width: number; height: number };
 }
 
 function is_payload(value: unknown): value is CapturePayload
@@ -80,6 +82,11 @@ export async function build_capture_result(host: CaptureHost, args: CaptureArgs)
     command_args.height = args.height;
   }
 
+  if (args.max_size !== undefined)
+  {
+    command_args.max_size = args.max_size;
+  }
+
   let payload: unknown;
 
   try
@@ -102,11 +109,16 @@ export async function build_capture_result(host: CaptureHost, args: CaptureArgs)
 
   const mime_type = typeof payload.mime_type === 'string' ? payload.mime_type : 'image/png';
   const kilobytes = Math.round(payload.bytes / 1024);
+  const native = payload.scaled_from;
+
+  const origin = typeof native === 'object' && native !== null
+    ? `, downscaled from ${native.width}x${native.height}`
+    : '';
 
   return {
     content: [
       { type: 'image', data: payload.data, mimeType: mime_type },
-      { type: 'text', text: `${payload.mode} capture, ${payload.width}x${payload.height}, ${kilobytes} KB` }
+      { type: 'text', text: `${payload.mode} capture, ${payload.width}x${payload.height}${origin}, ${kilobytes} KB` }
     ]
   };
 }
@@ -124,7 +136,9 @@ export function register_capture_tool(server: McpServer, host: BridgeHost): void
         width: z.number().int().positive().max(8192).optional()
           .describe('hires only. Defaults to the canvas width. Clamped to 8192.'),
         height: z.number().int().positive().max(8192).optional()
-          .describe('hires only. Defaults to the canvas height. Clamped to 8192.')
+          .describe('hires only. Defaults to the canvas height. Clamped to 8192.'),
+        max_size: z.number().int().nonnegative().max(8192).optional()
+          .describe('fast only. Caps the long edge, preserving aspect ratio, and never upscales. Defaults to 1280 because a retina canvas reports physical pixels and every byte is base64 encoded into context. Pass 0 for native resolution.')
       },
       annotations: { readOnlyHint: true }
     },
