@@ -7,7 +7,7 @@ import { attach_capture, describe_error, failure, not_connected } from './shared
 export interface DebugDrawArgs
 {
   shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box';
-  position?: [number, number, number];
+  position?: number[];
   size?: number;
   color?: number | string;
   object?: { name?: string; uuid?: string };
@@ -62,7 +62,7 @@ export async function build_debug_draw_result(host: ToolHost, args: DebugDrawArg
   const result = payload as { id?: unknown; shape?: unknown; helpers?: unknown };
   const lines = [
     `drew ${String(result.shape ?? args.shape)} ${String(result.id ?? '?')}`,
-    `${String(result.helpers ?? '?')} debug_draw helpers on screen`
+    `${String(result.helpers ?? '?')} debug_draw helpers alive`
   ];
 
   const content: Array<ImageBlock | TextBlock> = [];
@@ -116,7 +116,7 @@ export async function build_debug_clear_result(host: ToolHost, args: DebugClearA
   const result = payload as { removed?: unknown; helpers?: unknown };
   const lines = [
     `removed ${String(result.removed ?? '?')}`,
-    `${String(result.helpers ?? '?')} debug_draw helpers on screen`
+    `${String(result.helpers ?? '?')} debug_draw helpers alive`
   ];
 
   const content: Array<ImageBlock | TextBlock> = [];
@@ -137,10 +137,10 @@ export function register_debug_tools(server: McpServer, host: BridgeHost): void
     'debug_draw',
     {
       title: 'Draw a debug helper in the OHZI app',
-      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. cube, sphere and plane go to the Debug overlay scene, which is drawn on top of the frame after the active render mode, so they stay visible in any render mode. math_sphere and bounding_box go into the current scene instead. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object. Helpers persist until debug_clear, including across view changes. Pass capture to see the result in the same call.',
+      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. cube, sphere and plane go to the Debug overlay scene, which survives view changes. It is drawn after the active render mode but depth-tested against the scene, so a helper inside or behind geometry can be hidden. math_sphere and bounding_box go into the current view\'s scene instead, so they go away when the view changes. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object; it is a snapshot of the object\'s bounds at draw time and does not follow it. Helpers stay until debug_clear. Pass capture to see the result in the same call.',
       inputSchema: {
         shape: z.enum(['cube', 'sphere', 'plane', 'math_sphere', 'bounding_box']).describe('What to draw.'),
-        position: z.tuple([z.number(), z.number(), z.number()]).optional().describe('World position [x, y, z]. Defaults to [0, 0, 0]. Ignored by bounding_box.'),
+        position: z.array(z.number()).length(3).optional().describe('World position [x, y, z]. Defaults to [0, 0, 0]. Ignored by bounding_box.'),
         size: z.number().positive().optional().describe('Cube edge, sphere and math_sphere radius, or plane width and height. Defaults to 1. Ignored by bounding_box.'),
         color: z.union([z.number().int().nonnegative(), z.string()]).optional().describe('Any three.js color: a hex number such as 0xff0000 or a CSS name or string. Defaults per shape: red for cube, sphere and math_sphere, green for plane, yellow for bounding_box.'),
         object: z.object({
@@ -157,7 +157,7 @@ export function register_debug_tools(server: McpServer, host: BridgeHost): void
     'debug_clear',
     {
       title: 'Clear OHZI debug helpers',
-      description: 'Remove helpers drawn with debug_draw: one by id, or all of them when no id is given. Never removes the helpers the app draws for itself. Returns how many were removed and how many remain. Pass capture to see the result in the same call.',
+      description: 'Remove helpers drawn with debug_draw: one by id, or all of them when no id is given. Never removes the helpers the app draws for itself. Returns how many were removed and how many helpers remain alive, including any in scenes that are not currently shown. Pass capture to see the result in the same call.',
       inputSchema: {
         id: z.string().optional().describe('Helper id returned by debug_draw. Omit to remove every debug_draw helper.'),
         capture: z.boolean().optional().describe('Also return a screenshot of the result.')

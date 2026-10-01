@@ -54,7 +54,7 @@ describe('debug_draw', () =>
   {
     const text = text_of(await build_debug_draw_result(host({ debug_draw: drawn }), { shape: 'cube' }));
 
-    expect(text).toBe('drew cube abc-123\n2 debug_draw helpers on screen');
+    expect(text).toBe('drew cube abc-123\n2 debug_draw helpers alive');
   });
 
   it('errors when not connected', async () =>
@@ -116,7 +116,7 @@ describe('debug_clear', () =>
   {
     const text = text_of(await build_debug_clear_result(host({ debug_clear: { removed: 3, helpers: 0 } }), {}));
 
-    expect(text).toBe('removed 3\n0 debug_draw helpers on screen');
+    expect(text).toBe('removed 3\n0 debug_draw helpers alive');
   });
 
   it('errors when not connected', async () =>
