@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { BridgeError } from '../../src/bridge/BridgeError.js';
-import { build_debug_clear_result, build_debug_draw_result } from '../../src/tools/debug.js';
+import { build_debug_clear_result, build_debug_draw_result, register_debug_tools } from '../../src/tools/debug.js';
 
 interface Call { cmd: string; args?: Record<string, unknown> }
 
@@ -48,6 +49,26 @@ describe('debug_draw', () =>
     await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'bounding_box', object: { name: 'Hero' } });
 
     expect(calls[0].args).toEqual({ shape: 'bounding_box', object: { name: 'Hero' } });
+  });
+
+  it('forwards the text and the font for sdf_text', async () =>
+  {
+    const calls: Call[] = [];
+    await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'sdf_text', text: 'Hello', font: '/fonts/sdf/roboto.json', size: 0.5 });
+
+    expect(calls[0].args).toEqual({ shape: 'sdf_text', text: 'Hello', font: '/fonts/sdf/roboto.json', size: 0.5 });
+  });
+
+  it('accepts sdf_text with a font in its input schema', () =>
+  {
+    const schemas: Record<string, z.ZodRawShape> = {};
+    const server = { registerTool: (name: string, config: { inputSchema: z.ZodRawShape }) => { schemas[name] = config.inputSchema; } };
+
+    register_debug_tools(server as never, {} as never);
+    const schema = z.object(schemas.debug_draw);
+
+    expect(schema.safeParse({ shape: 'sdf_text', text: 'Hello', font: '/fonts/sdf/roboto.json' }).success).toBe(true);
+    expect(schema.safeParse({ shape: 'sdf_text', text: 'Hello', font: '' }).success).toBe(false);
   });
 
   it('forwards the text for labels', async () =>

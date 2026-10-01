@@ -6,12 +6,13 @@ import { attach_capture, describe_error, failure, not_connected } from './shared
 
 export interface DebugDrawArgs
 {
-  shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box' | 'label';
+  shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box' | 'label' | 'sdf_text';
   position?: number[];
   size?: number;
   color?: number | string;
   object?: { name?: string; uuid?: string };
   text?: string;
+  font?: string;
   capture?: boolean;
 }
 
@@ -47,6 +48,11 @@ export async function build_debug_draw_result(host: ToolHost, args: DebugDrawArg
   if (args.text !== undefined)
   {
     command_args.text = args.text;
+  }
+
+  if (args.font !== undefined)
+  {
+    command_args.font = args.font;
   }
 
   let payload: unknown;
@@ -143,17 +149,18 @@ export function register_debug_tools(server: McpServer, host: BridgeHost): void
     'debug_draw',
     {
       title: 'Draw a debug helper in the OHZI app',
-      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. label writes text that always faces the camera, to name what you point at. cube, sphere, plane and label go to the Debug overlay scene, which survives view changes. It is drawn after the active render mode but depth-tested against the scene, so a helper inside or behind geometry can be hidden. math_sphere and bounding_box go into the current view\'s scene instead, so they go away when the view changes. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object; it is a snapshot of the object\'s bounds at draw time and does not follow it. Helpers stay until debug_clear. Pass capture to see the result in the same call.',
+      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. label writes text that always faces the camera, to name what you point at. sdf_text writes text with the multi channel SDF text renderer (SDFTextBatch), flat in the XY plane facing +Z and centered at position, to check SDF text rendering; it uses the app\'s default SDF font unless font names another one, and it answers once the font has loaded. cube, sphere, plane, label and sdf_text go to the Debug overlay scene, which survives view changes. It is drawn after the active render mode but depth-tested against the scene, so a helper inside or behind geometry can be hidden. math_sphere and bounding_box go into the current view\'s scene instead, so they go away when the view changes. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object; it is a snapshot of the object\'s bounds at draw time and does not follow it. Helpers stay until debug_clear. Pass capture to see the result in the same call.',
       inputSchema: {
-        shape: z.enum(['cube', 'sphere', 'plane', 'math_sphere', 'bounding_box', 'label']).describe('What to draw.'),
+        shape: z.enum(['cube', 'sphere', 'plane', 'math_sphere', 'bounding_box', 'label', 'sdf_text']).describe('What to draw.'),
         position: z.array(z.number()).length(3).optional().describe('World position [x, y, z]. Defaults to [0, 0, 0]. Ignored by bounding_box.'),
-        size: z.number().positive().optional().describe('Cube edge, sphere and math_sphere radius, plane width and height, or label text height. Defaults to 1. Ignored by bounding_box.'),
-        color: z.union([z.number().int().nonnegative(), z.string()]).optional().describe('Any three.js color: a hex number such as 0xff0000 or a CSS name or string. Defaults per shape: red for cube, sphere and math_sphere, green for plane, yellow for bounding_box, white for label.'),
+        size: z.number().positive().optional().describe('Cube edge, sphere and math_sphere radius, plane width and height, label text height, or sdf_text font size (em height). Defaults to 1. Ignored by bounding_box.'),
+        color: z.union([z.number().int().nonnegative(), z.string()]).optional().describe('Any three.js color: a hex number such as 0xff0000 or a CSS name or string. Defaults per shape: red for cube, sphere and math_sphere, green for plane, yellow for bounding_box, white for label and sdf_text.'),
         object: z.object({
           name: z.string().optional().describe('Exact object name.'),
           uuid: z.string().optional().describe('Object uuid. Wins over name.')
         }).optional().describe('The object to outline in the current scene. Required for bounding_box, ignored by other shapes.'),
-        text: z.string().min(1).max(200).optional().describe('The text to write, one line of up to 200 characters. Required for label, ignored by other shapes.'),
+        text: z.string().min(1).max(200).optional().describe('The text to write, one line of up to 200 characters. Required for label and sdf_text, ignored by other shapes.'),
+        font: z.string().min(1).optional().describe('URL of an msdf-atlas-gen .json layout (generated with -yorigin bottom), served by the app, with its .png atlas next to it. Only for sdf_text; defaults to the app\'s SDF font.'),
         capture: z.boolean().optional().describe('Also return a screenshot of the result.')
       }
     },

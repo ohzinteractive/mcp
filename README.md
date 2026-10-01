@@ -103,7 +103,7 @@ Twenty-two tools, grouped below by what they touch. Every tool that changes some
 
 | Tool | What it does |
 |---|---|
-| `debug_draw` | Draws a cube, sphere, plane, math sphere or bounding box to mark a position, a volume or an object. Cube, sphere and plane live in the Debug overlay and survive view changes; math sphere and bounding box live in the current view's scene. A bounding box is a snapshot and does not follow its object. |
+| `debug_draw` | Draws a cube, sphere, plane, math sphere or bounding box to mark a position, a volume or an object, a label that faces the camera, or `sdf_text` to check the SDF text renderer (the app's default SDF font, or the msdf-atlas-gen `.json` layout given as `font`). Cube, sphere, plane, label and SDF text live in the Debug overlay and survive view changes; math sphere and bounding box live in the current view's scene. A bounding box is a snapshot and does not follow its object. |
 | `debug_clear` | Removes helpers drawn with `debug_draw`, one by id or all of them. The helpers the app draws for itself are never touched. |
 
 ### Input
