@@ -6,11 +6,12 @@ import { attach_capture, describe_error, failure, not_connected } from './shared
 
 export interface DebugDrawArgs
 {
-  shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box';
+  shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box' | 'label';
   position?: number[];
   size?: number;
   color?: number | string;
   object?: { name?: string; uuid?: string };
+  text?: string;
   capture?: boolean;
 }
 
@@ -41,6 +42,11 @@ export async function build_debug_draw_result(host: ToolHost, args: DebugDrawArg
   if (args.object !== undefined)
   {
     command_args.object = args.object;
+  }
+
+  if (args.text !== undefined)
+  {
+    command_args.text = args.text;
   }
 
   let payload: unknown;
@@ -137,16 +143,17 @@ export function register_debug_tools(server: McpServer, host: BridgeHost): void
     'debug_draw',
     {
       title: 'Draw a debug helper in the OHZI app',
-      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. cube, sphere and plane go to the Debug overlay scene, which survives view changes. It is drawn after the active render mode but depth-tested against the scene, so a helper inside or behind geometry can be hidden. math_sphere and bounding_box go into the current view\'s scene instead, so they go away when the view changes. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object; it is a snapshot of the object\'s bounds at draw time and does not follow it. Helpers stay until debug_clear. Pass capture to see the result in the same call.',
+      description: 'Draw a debug helper in the running app to mark a position, a volume or an object. label writes text that always faces the camera, to name what you point at. cube, sphere, plane and label go to the Debug overlay scene, which survives view changes. It is drawn after the active render mode but depth-tested against the scene, so a helper inside or behind geometry can be hidden. math_sphere and bounding_box go into the current view\'s scene instead, so they go away when the view changes. plane and math_sphere are 20% opaque. bounding_box outlines an existing object and needs object; it is a snapshot of the object\'s bounds at draw time and does not follow it. Helpers stay until debug_clear. Pass capture to see the result in the same call.',
       inputSchema: {
-        shape: z.enum(['cube', 'sphere', 'plane', 'math_sphere', 'bounding_box']).describe('What to draw.'),
+        shape: z.enum(['cube', 'sphere', 'plane', 'math_sphere', 'bounding_box', 'label']).describe('What to draw.'),
         position: z.array(z.number()).length(3).optional().describe('World position [x, y, z]. Defaults to [0, 0, 0]. Ignored by bounding_box.'),
-        size: z.number().positive().optional().describe('Cube edge, sphere and math_sphere radius, or plane width and height. Defaults to 1. Ignored by bounding_box.'),
-        color: z.union([z.number().int().nonnegative(), z.string()]).optional().describe('Any three.js color: a hex number such as 0xff0000 or a CSS name or string. Defaults per shape: red for cube, sphere and math_sphere, green for plane, yellow for bounding_box.'),
+        size: z.number().positive().optional().describe('Cube edge, sphere and math_sphere radius, plane width and height, or label text height. Defaults to 1. Ignored by bounding_box.'),
+        color: z.union([z.number().int().nonnegative(), z.string()]).optional().describe('Any three.js color: a hex number such as 0xff0000 or a CSS name or string. Defaults per shape: red for cube, sphere and math_sphere, green for plane, yellow for bounding_box, white for label.'),
         object: z.object({
           name: z.string().optional().describe('Exact object name.'),
           uuid: z.string().optional().describe('Object uuid. Wins over name.')
         }).optional().describe('The object to outline in the current scene. Required for bounding_box, ignored by other shapes.'),
+        text: z.string().min(1).optional().describe('The text to write. Required for label, ignored by other shapes.'),
         capture: z.boolean().optional().describe('Also return a screenshot of the result.')
       }
     },

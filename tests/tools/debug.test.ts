@@ -50,6 +50,14 @@ describe('debug_draw', () =>
     expect(calls[0].args).toEqual({ shape: 'bounding_box', object: { name: 'Hero' } });
   });
 
+  it('forwards the text for labels', async () =>
+  {
+    const calls: Call[] = [];
+    await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'label', text: 'spawn point', position: [0, 2, 0] });
+
+    expect(calls[0].args).toEqual({ shape: 'label', text: 'spawn point', position: [0, 2, 0] });
+  });
+
   it('reports the helper id, shape and live count', async () =>
   {
     const text = text_of(await build_debug_draw_result(host({ debug_draw: drawn }), { shape: 'cube' }));
