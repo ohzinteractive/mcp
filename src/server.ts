@@ -8,6 +8,7 @@ import { resolve_port } from './config.js';
 import { register_camera_tools } from './tools/camera.js';
 import { register_capture_tool } from './tools/capture.js';
 import { register_console_tool } from './tools/console.js';
+import { register_debug_tools } from './tools/debug.js';
 import { register_input_tools } from './tools/input.js';
 import { register_knowledge_tools } from './tools/knowledge.js';
 import { register_render_tools } from './tools/render.js';
@@ -33,6 +34,7 @@ async function main(): Promise<void>
   register_camera_tools(server, host);
   register_render_tools(server, host);
   register_view_tools(server, host);
+  register_debug_tools(server, host);
   register_input_tools(server, host);
 
   // Built lazily: reading a few hundred declaration files should not slow
