@@ -58,7 +58,7 @@ The server is not on npm yet. Until it is, add it as a submodule, build it, and 
 
 ## Tools
 
-Twenty tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
+Twenty-two tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
 
 ### Status and observation
 
@@ -98,6 +98,13 @@ Twenty tools, grouped below by what they touch. Every tool that changes somethin
 |---|---|
 | `list_views` | Views registered with `ViewManager`, with urls, marking the active one. |
 | `go_to_view` | Transitions to another view. Transitions are animated, so the active view can lag the request by a few frames. |
+
+### Debug helpers
+
+| Tool | What it does |
+|---|---|
+| `debug_draw` | Draws a cube, sphere, plane, math sphere or bounding box to mark a position, a volume or an object. Cube, sphere and plane live in the Debug overlay and survive view changes; math sphere and bounding box live in the current view's scene. A bounding box is a snapshot and does not follow its object. |
+| `debug_clear` | Removes helpers drawn with `debug_draw`, one by id or all of them. The helpers the app draws for itself are never touched. |
 
 ### Input
 
