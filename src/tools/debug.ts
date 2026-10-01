@@ -4,6 +4,10 @@ import type { BridgeHost } from '../bridge/BridgeHost.js';
 import type { ImageBlock, TextBlock, ToolHost, ToolResult } from './shared.js';
 import { attach_capture, describe_error, failure, not_connected } from './shared.js';
 
+// sdf_text answers once the app has fetched its font layout and decoded its atlas,
+// which can take well over the default timeout for a remote or uncached font.
+const SDF_TEXT_TIMEOUT_MS = 20000;
+
 export interface DebugDrawArgs
 {
   shape: 'cube' | 'sphere' | 'plane' | 'math_sphere' | 'bounding_box' | 'label' | 'sdf_text';
@@ -59,7 +63,9 @@ export async function build_debug_draw_result(host: ToolHost, args: DebugDrawArg
 
   try
   {
-    payload = await host.send('debug_draw', command_args);
+    payload = args.shape === 'sdf_text'
+      ? await host.send('debug_draw', command_args, SDF_TEXT_TIMEOUT_MS)
+      : await host.send('debug_draw', command_args);
   }
   catch (error)
   {

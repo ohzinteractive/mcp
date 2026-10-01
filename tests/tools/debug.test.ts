@@ -3,15 +3,15 @@ import { z } from 'zod';
 import { BridgeError } from '../../src/bridge/BridgeError.js';
 import { build_debug_clear_result, build_debug_draw_result, register_debug_tools } from '../../src/tools/debug.js';
 
-interface Call { cmd: string; args?: Record<string, unknown> }
+interface Call { cmd: string; args?: Record<string, unknown>; timeout_ms?: number }
 
 function host(results: Record<string, unknown>, calls: Call[] = [], connected = true)
 {
   return {
     connected,
-    send: async (cmd: string, args?: Record<string, unknown>) =>
+    send: async (cmd: string, args?: Record<string, unknown>, timeout_ms?: number) =>
     {
-      calls.push({ cmd, args });
+      calls.push(timeout_ms === undefined ? { cmd, args } : { cmd, args, timeout_ms });
       const result = results[cmd];
       if (result instanceof Error) { throw result; }
       return result;
@@ -57,6 +57,16 @@ describe('debug_draw', () =>
     await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'sdf_text', text: 'Hello', font: '/fonts/sdf/roboto.json', size: 0.5 });
 
     expect(calls[0].args).toEqual({ shape: 'sdf_text', text: 'Hello', font: '/fonts/sdf/roboto.json', size: 0.5 });
+  });
+
+  it('waits longer for sdf_text, which answers once its font has loaded', async () =>
+  {
+    const calls: Call[] = [];
+    await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'sdf_text', text: 'Hello' });
+    await build_debug_draw_result(host({ debug_draw: drawn }, calls), { shape: 'cube' });
+
+    expect(calls[0].timeout_ms).toBeGreaterThanOrEqual(15000);
+    expect(calls[1].timeout_ms).toBeUndefined();
   });
 
   it('accepts sdf_text with a font in its input schema', () =>
