@@ -153,7 +153,7 @@ export function register_debug_tools(server: McpServer, host: BridgeHost): void
           name: z.string().optional().describe('Exact object name.'),
           uuid: z.string().optional().describe('Object uuid. Wins over name.')
         }).optional().describe('The object to outline in the current scene. Required for bounding_box, ignored by other shapes.'),
-        text: z.string().min(1).optional().describe('The text to write. Required for label, ignored by other shapes.'),
+        text: z.string().min(1).max(200).optional().describe('The text to write, one line of up to 200 characters. Required for label, ignored by other shapes.'),
         capture: z.boolean().optional().describe('Also return a screenshot of the result.')
       }
     },
