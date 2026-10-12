@@ -3,8 +3,8 @@ import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { BridgeHost } from '../bridge/BridgeHost.js';
-import { LOAD_TIMEOUT_MS } from '../config.js';
-import type { CoreTasks, ScaffoldReport, Tier, Transform } from '../knowledge/core_tasks.js';
+import { LOAD_TIMEOUT_MS, PREVIEW_DEADLINE_MS, PREVIEW_RETRY_MS, RELOAD_POLL_MS, RELOAD_WAIT_MS } from '../config.js';
+import type { CoreTasks, ImportedModel, ScaffoldReport, Tier, Transform } from '../knowledge/core_tasks.js';
 import type { ImageBlock, TextBlock, ToolHost, ToolResult } from './shared.js';
 import { attach_capture, describe_error, failure, not_connected, triple } from './shared.js';
 
@@ -62,11 +62,88 @@ function describe_load(payload: unknown): string
   return `loaded ${String(loaded.name ?? '?')}: ${String(loaded.meshes ?? '?')} meshes, ${String(loaded.triangles ?? '?')} triangles, ${bounds}`;
 }
 
+export interface ImportTiming
+{
+  sleep(ms: number): Promise<void>;
+  now(): number;
+}
+
+const REAL_TIMING: ImportTiming = {
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  now: () => Date.now()
+};
+
+// The app is momentarily unreachable or not yet serving the file: worth another
+// try. Anything else, such as a file that fails to parse, will not get better.
+const RETRYABLE_CODES = new Set(['not_ready', 'app_not_connected', 'disconnected']);
+
+const DRACO_HINT = 'Enable DracoInitializer in app/js/Api.ts.';
+
+function patched_a_manifest(report: ScaffoldReport): boolean
+{
+  return report.patched.some((entry) => entry.file.endsWith('_objects.js'));
+}
+
+// Vite fully reloads the page when a manifest changes, which wipes the preview,
+// so the load has to wait for the new page to connect.
+async function wait_for_reload(host: ImportHost, generation: number, timing: ImportTiming): Promise<void>
+{
+  const start = timing.now();
+
+  while (host.generation === generation && timing.now() - start < RELOAD_WAIT_MS)
+  {
+    await timing.sleep(RELOAD_POLL_MS);
+  }
+}
+
+async function load_with_retries(host: ImportHost, model: ImportedModel, timing: ImportTiming): Promise<unknown>
+{
+  const start = timing.now();
+
+  for (;;)
+  {
+    try
+    {
+      return await host.send('load_object', { name: model.name, url: model.url, draco: model.draco, version: model.version }, LOAD_TIMEOUT_MS);
+    }
+    catch (error)
+    {
+      const code = (error as { code?: string }).code;
+
+      if (code === undefined || !RETRYABLE_CODES.has(code) || timing.now() - start + PREVIEW_RETRY_MS >= PREVIEW_DEADLINE_MS)
+      {
+        throw error;
+      }
+
+      await timing.sleep(PREVIEW_RETRY_MS);
+    }
+  }
+}
+
+// Asks the running app whether it can decode Draco. Only an explicit false
+// counts: an older app without the field, or a failed call, must not block.
+async function lacks_draco_decoder(host: ImportHost): Promise<boolean>
+{
+  try
+  {
+    const status = await host.send('status') as { draco_decoder?: unknown } | null;
+
+    return status?.draco_decoder === false;
+  }
+  catch
+  {
+    return false;
+  }
+}
+
+export type ImportHost = ToolHost & { generation: number };
+
 export async function build_import_model_result(
-  host: ToolHost,
+  host: ImportHost,
   load_tasks: () => Promise<CoreTasks>,
   root: string,
-  args: ImportModelToolArgs
+  args: ImportModelToolArgs,
+  timing: ImportTiming = REAL_TIMING
 ): Promise<ToolResult>
 {
   let tasks: CoreTasks;
@@ -99,7 +176,15 @@ export async function build_import_model_result(
   }
 
   const { model } = planned;
+
+  if (model.draco && !dry_run && host.connected && await lacks_draco_decoder(host))
+  {
+    return failure(`Import refused, nothing was written: this model is Draco-compressed, but the running app has no Draco decoder. ${DRACO_HINT}`);
+  }
+
   const lines = [`import_model ${model.name} (${model.tier} tier, ${model.draco ? 'draco' : 'no draco'}, ${model.size} bytes)`];
+  const generation = host.generation;
+  let reloads = false;
 
   if (planned.unchanged)
   {
@@ -107,7 +192,16 @@ export async function build_import_model_result(
   }
   else
   {
-    const report = planned.scaffolder.run();
+    let report: ScaffoldReport;
+
+    try
+    {
+      report = planned.scaffolder.run();
+    }
+    catch (error)
+    {
+      return failure(`Import refused: ${(error as Error).message}`);
+    }
 
     if (report.errors.length > 0)
     {
@@ -115,6 +209,7 @@ export async function build_import_model_result(
     }
 
     lines.push(...describe_report(report));
+    reloads = !report.dry_run && patched_a_manifest(report);
   }
 
   if (dry_run)
@@ -128,14 +223,24 @@ export async function build_import_model_result(
   {
     lines.push('preview skipped: the app is not connected. Start it with `yarn start`, then call import_model again to load it.');
 
+    if (model.draco)
+    {
+      lines.push(`note: this is a Draco model, so the app needs a Draco decoder to preview it. ${DRACO_HINT}`);
+    }
+
     return text(lines);
+  }
+
+  if (reloads)
+  {
+    await wait_for_reload(host, generation, timing);
   }
 
   let payload: unknown;
 
   try
   {
-    payload = await host.send('load_object', { name: model.name, url: model.url, draco: model.draco, version: model.version }, LOAD_TIMEOUT_MS);
+    payload = await load_with_retries(host, model, timing);
   }
   catch (error)
   {
@@ -248,17 +353,19 @@ export async function build_commit_object_result(
   return text(lines);
 }
 
+const SNAKE_CASE = /^[a-z][a-z0-9_]*$/;
+
 export function register_import_tools(server: McpServer, host: BridgeHost, load_tasks: () => Promise<CoreTasks>, root: string): void
 {
   server.registerTool(
     'import_model',
     {
       title: 'Import a GLB model into the OHZI project',
-      description: 'Copy a local self-contained .glb into public/models, list it in a scene\'s object manifest (app/data/assets/<scene>/<scene>_objects.js, or the high tier), and load it into the running app for preview, returning a screenshot. Writes project files. Draco is detected and supported; models that require meshopt or KTX2 are refused. Importing the identical file again changes nothing and only reloads the preview; a changed file under the same name needs replace. Place the preview with set_object, then save the placement as code with commit_object.',
+      description: 'Copy a local self-contained .glb into public/models, list it in a scene\'s object manifest (app/data/assets/<scene>/<scene>_objects.js, or the high tier), and load it into the running app for preview, returning a screenshot. Writes project files. Draco is detected and supported once DracoInitializer is enabled in app/js/Api.ts; models that require meshopt or KTX2 are refused. Importing the identical file again changes nothing and only reloads the preview; a changed file under the same name needs replace. Place the preview with set_object, then save the placement as code with commit_object.',
       inputSchema: {
         source: z.string().min(1).describe('Path to the .glb on this machine. Absolute, ~/..., or relative to the project root.'),
         scene: z.string().min(1).optional().describe('Scene folder under app/data/assets. Defaults to home.'),
-        name: z.string().min(1).optional().describe('Model name: the manifest name, file name and scene field. Defaults to the file name in snake_case.'),
+        name: z.string().regex(SNAKE_CASE).optional().describe('Model name in snake_case (a-z, 0-9 and _, starting with a letter): the manifest name, file name and scene field. Defaults to the file name in snake_case.'),
         tier: z.enum(['regular', 'high']).optional().describe('regular loads with the scene; high loads after it, with the high quality assets. Defaults to regular.'),
         replace: z.boolean().optional().describe('Overwrite a different file already imported under this name.'),
         dry_run: z.boolean().optional().describe('Report what would be written without writing or loading anything.')
@@ -273,7 +380,7 @@ export function register_import_tools(server: McpServer, host: BridgeHost, load_
       title: 'Save an imported model\'s placement as code',
       description: 'Read the live transform of an object loaded by import_model and save it as code. The first commit creates app/js/objects/<Name>.ts (a class extending Object3D that wraps the model and holds its transform) and wires the scene at its // __OBJECT_IMPORTS__, // __OBJECT_FIELDS__ and // __OBJECTS__ (or // __HIGH_OBJECTS__) markers. A later commit rewrites only the three transform lines of the class. Writes project files.',
       inputSchema: {
-        name: z.string().min(1).describe('Model name used with import_model.'),
+        name: z.string().regex(SNAKE_CASE).describe('Model name in snake_case, as used with import_model.'),
         scene: z.string().min(1).optional().describe('Scene folder under app/data/assets. Defaults to home.'),
         dry_run: z.boolean().optional().describe('Report what would be written without writing anything.')
       }
