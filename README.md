@@ -110,7 +110,7 @@ Twenty-four tools, grouped below by what they touch. Every tool that changes som
 
 | Tool | What it does |
 |---|---|
-| `import_model` | Copies a local self-contained `.glb` into `public/models`, lists it in a scene's object manifest and loads it into the running app for preview, with a screenshot. Draco models work; models that require meshopt or KTX2 are refused. Importing the identical file again only reloads the preview; a changed file under the same name needs `replace`. Writes project files. |
+| `import_model` | Copies a local self-contained `.glb` into `public/models`, lists it in a scene's object manifest and loads it into the running app for preview, with a screenshot. Draco models work once `DracoInitializer` is enabled in `app/js/Api.ts` (without it the import is refused before anything is written); models that require meshopt or KTX2 are refused. Importing the identical file again only reloads the preview; a changed file under the same name needs `replace`. Writes project files. |
 | `commit_object` | Saves the live placement of an imported model as code: a wrapper class in `app/js/objects/` and the scene wiring at its `// __OBJECT_*__` markers. A later commit rewrites only the transform lines. Writes project files. |
 
 ### Input
@@ -147,7 +147,7 @@ These two read the **consuming project's** committed `types/*.d.ts`, so signatur
 
 **The handshake is versioned.** The page sends `hello` with its protocol version; the server replies `welcome` or `refused`, naming both versions. A mismatched `ohzi-core` fails loudly instead of misbehaving quietly.
 
-**Commands are id-correlated and time out.** Five seconds by default, fifteen for a capture, twenty for input — synthetic input spends real time between press and release on purpose.
+**Commands are id-correlated and time out.** Five seconds by default, fifteen for a capture, thirty for a model load, twenty for input — synthetic input spends real time between press and release on purpose.
 
 **Handlers run at a frame boundary when they must.** Each is registered `immediate` or `frame_end`. Anything that renders or mutates is `frame_end`, drained from `MainApplication.on_frame_end()`, so it can never land part-way through a frame and tear. `capture_viewport` is the clearest case: it overrides `OScreen`, the renderer pixel ratio and the camera view offset, so running it mid-frame would corrupt the render.
 
