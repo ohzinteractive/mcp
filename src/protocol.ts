@@ -60,7 +60,9 @@ export type BridgeErrorCode =
   | 'controller_owns_camera'
   | 'handler_failed'
   | 'capture_failed'
-  | 'load_failed';
+  | 'load_failed'
+  | 'not_ready'
+  | 'no_draco_decoder';
 
 function is_record(value: unknown): value is Record<string, unknown>
 {

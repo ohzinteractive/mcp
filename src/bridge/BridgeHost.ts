@@ -20,6 +20,17 @@ export class BridgeHost
   private pending = new Map<string, PendingCommand>();
   private next_id = 0;
 
+  private connections = 0;
+
+  /**
+   * Counts accepted app connections. A page reload makes a new one, so a tool
+   * that knows the app is about to reload can wait for this to change.
+   */
+  get generation(): number
+  {
+    return this.connections;
+  }
+
   get connected(): boolean
   {
     return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
@@ -159,6 +170,7 @@ export class BridgeHost
 
     this.socket = socket;
     this.info = hello.app;
+    this.connections++;
 
     socket.send(JSON.stringify({ event: 'welcome', protocol: PROTOCOL_VERSION }));
 
