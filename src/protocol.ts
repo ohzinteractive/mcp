@@ -59,7 +59,8 @@ export type BridgeErrorCode =
   | 'not_found'
   | 'controller_owns_camera'
   | 'handler_failed'
-  | 'capture_failed';
+  | 'capture_failed'
+  | 'load_failed';
 
 function is_record(value: unknown): value is Record<string, unknown>
 {

@@ -1,6 +1,8 @@
 export const DEFAULT_PORT = 7317;
 export const DEFAULT_TIMEOUT_MS = 5000;
 export const CAPTURE_TIMEOUT_MS = 15000;
+// A GLB of tens of megabytes takes a while to fetch and parse.
+export const LOAD_TIMEOUT_MS = 30000;
 
 export function resolve_port(env: NodeJS.ProcessEnv): number
 {
