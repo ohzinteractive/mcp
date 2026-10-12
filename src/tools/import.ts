@@ -1,9 +1,12 @@
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import { z } from 'zod';
+import type { BridgeHost } from '../bridge/BridgeHost.js';
 import { LOAD_TIMEOUT_MS } from '../config.js';
-import type { CoreTasks, ScaffoldReport, Tier } from '../knowledge/core_tasks.js';
+import type { CoreTasks, ScaffoldReport, Tier, Transform } from '../knowledge/core_tasks.js';
 import type { ImageBlock, TextBlock, ToolHost, ToolResult } from './shared.js';
-import { attach_capture, describe_error, failure, triple } from './shared.js';
+import { attach_capture, describe_error, failure, not_connected, triple } from './shared.js';
 
 export interface ImportModelToolArgs
 {
@@ -152,4 +155,129 @@ export async function build_import_model_result(
   content.push({ type: 'text', text: lines.join('\n') });
 
   return { content };
+}
+
+export interface CommitObjectToolArgs
+{
+  name: string;
+  scene?: string;
+  dry_run?: boolean;
+}
+
+function vector(value: unknown, fallback: number): number[] | null
+{
+  if (value === undefined)
+  {
+    return [fallback, fallback, fallback];
+  }
+
+  return Array.isArray(value) && value.length === 3 && value.every((entry) => typeof entry === 'number') ? value : null;
+}
+
+export async function build_commit_object_result(
+  host: ToolHost,
+  load_tasks: () => Promise<CoreTasks>,
+  root: string,
+  args: CommitObjectToolArgs
+): Promise<ToolResult>
+{
+  if (!host.connected)
+  {
+    return not_connected();
+  }
+
+  let tasks: CoreTasks;
+
+  try
+  {
+    tasks = await load_tasks();
+  }
+  catch (error)
+  {
+    return failure((error as Error).message);
+  }
+
+  let payload: unknown;
+
+  try
+  {
+    payload = await host.send('get_object', { name: args.name });
+  }
+  catch (error)
+  {
+    return failure(`Reading "${args.name}" from the running app failed ${describe_error(error)}. Import it with import_model first, or check the name with inspect_scene.`);
+  }
+
+  const detail = (typeof payload === 'object' && payload !== null ? payload : {}) as Record<string, unknown>;
+  const position = vector(detail.position, 0);
+  const rotation = vector(detail.rotation, 0);
+  const scale = vector(detail.scale, 1);
+
+  if (position === null || rotation === null || scale === null || detail.position === undefined)
+  {
+    return failure('The app returned a malformed object payload.');
+  }
+
+  const transform: Transform = { position, rotation, scale };
+  let report: ScaffoldReport;
+
+  try
+  {
+    report = tasks.plan_commit_object({ name: args.name, scene: args.scene, transform }, { root, dry_run: args.dry_run === true }).run();
+  }
+  catch (error)
+  {
+    return failure(`Commit refused: ${(error as Error).message}`);
+  }
+
+  if (report.errors.length > 0)
+  {
+    return failure(['Commit refused, nothing was written:', ...report.errors.map((error) => `- ${error}`)].join('\n'));
+  }
+
+  const lines = [
+    `commit_object ${args.name}: position [${position.join(', ')}], rotation [${rotation.join(', ')}], scale [${scale.join(', ')}]`,
+    ...describe_report(report)
+  ];
+
+  if (report.dry_run)
+  {
+    lines.push('dry run: nothing was written');
+  }
+
+  return text(lines);
+}
+
+export function register_import_tools(server: McpServer, host: BridgeHost, load_tasks: () => Promise<CoreTasks>, root: string): void
+{
+  server.registerTool(
+    'import_model',
+    {
+      title: 'Import a GLB model into the OHZI project',
+      description: 'Copy a local self-contained .glb into public/models, list it in a scene\'s object manifest (app/data/assets/<scene>/<scene>_objects.js, or the high tier), and load it into the running app for preview, returning a screenshot. Writes project files. Draco is detected and supported; models that require meshopt or KTX2 are refused. Importing the identical file again changes nothing and only reloads the preview; a changed file under the same name needs replace. Place the preview with set_object, then save the placement as code with commit_object.',
+      inputSchema: {
+        source: z.string().min(1).describe('Path to the .glb on this machine. Absolute, ~/..., or relative to the project root.'),
+        scene: z.string().min(1).optional().describe('Scene folder under app/data/assets. Defaults to home.'),
+        name: z.string().min(1).optional().describe('Model name: the manifest name, file name and scene field. Defaults to the file name in snake_case.'),
+        tier: z.enum(['regular', 'high']).optional().describe('regular loads with the scene; high loads after it, with the high quality assets. Defaults to regular.'),
+        replace: z.boolean().optional().describe('Overwrite a different file already imported under this name.'),
+        dry_run: z.boolean().optional().describe('Report what would be written without writing or loading anything.')
+      }
+    },
+    async (args) => build_import_model_result(host, load_tasks, root, args)
+  );
+
+  server.registerTool(
+    'commit_object',
+    {
+      title: 'Save an imported model\'s placement as code',
+      description: 'Read the live transform of an object loaded by import_model and save it as code. The first commit creates app/js/objects/<Name>.ts (a class extending Object3D that wraps the model and holds its transform) and wires the scene at its // __OBJECT_IMPORTS__, // __OBJECT_FIELDS__ and // __OBJECTS__ (or // __HIGH_OBJECTS__) markers. A later commit rewrites only the three transform lines of the class. Writes project files.',
+      inputSchema: {
+        name: z.string().min(1).describe('Model name used with import_model.'),
+        scene: z.string().min(1).optional().describe('Scene folder under app/data/assets. Defaults to home.'),
+        dry_run: z.boolean().optional().describe('Report what would be written without writing anything.')
+      }
+    },
+    async (args) => build_commit_object_result(host, load_tasks, root, args)
+  );
 }

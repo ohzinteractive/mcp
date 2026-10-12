@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { BridgeError } from '../../src/bridge/BridgeError.js';
 import type { CoreTasks, ScaffoldReport } from '../../src/knowledge/core_tasks.js';
-import { build_import_model_result, describe_report, resolve_source } from '../../src/tools/import.js';
+import { build_commit_object_result, build_import_model_result, describe_report, register_import_tools, resolve_source } from '../../src/tools/import.js';
 
 interface Call { cmd: string; args?: Record<string, unknown>; timeout_ms?: number }
 
@@ -148,5 +149,96 @@ describe('import_model', () =>
 
     expect(result.isError).toBe(true);
     expect(text_of(result)).toContain('No OHZI scaffolders');
+  });
+});
+
+const OBJECT = { name: 'chair', type: 'Group', position: [1.25, 0, -2], rotation: [0, 1.5708, 0], scale: [1, 1, 1] };
+
+function commit_tasks(planned: { report?: ScaffoldReport; error?: Error } = {}, seen: unknown[] = [])
+{
+  return async() => ({
+    plan_import_model: () => { throw new Error('not used'); },
+    plan_commit_object: (args: unknown, options: unknown) =>
+    {
+      seen.push({ args, options });
+      if (planned.error !== undefined) { throw planned.error; }
+      return { run: () => planned.report ?? report({ created: ['app/js/objects/Chair.ts'], patched: [{ file: 'app/js/scenes/HomeScene.ts', label: 'instance of Chair' }] }) };
+    }
+  }) as unknown as CoreTasks;
+}
+
+describe('commit_object', () =>
+{
+  it('reads the live transform and plans the commit with it', async() =>
+  {
+    const calls: Call[] = [];
+    const seen: unknown[] = [];
+
+    const result = await build_commit_object_result(host({ get_object: OBJECT }, calls), commit_tasks({}, seen), '/project', { name: 'chair' });
+
+    expect(calls).toEqual([{ cmd: 'get_object', args: { name: 'chair' } }]);
+    expect(seen).toEqual([{ args: { name: 'chair', scene: undefined, transform: { position: [1.25, 0, -2], rotation: [0, 1.5708, 0], scale: [1, 1, 1] } }, options: { root: '/project', dry_run: false } }]);
+    expect(text_of(result)).toContain('created app/js/objects/Chair.ts');
+    expect(text_of(result)).toContain('patched app/js/scenes/HomeScene.ts (instance of Chair)');
+  });
+
+  it('defaults a missing rotation and scale', async() =>
+  {
+    const seen: Array<{ args: { transform: unknown } }> = [];
+
+    await build_commit_object_result(host({ get_object: { name: 'chair', position: [0, 1, 0] } }), commit_tasks({}, seen), '/project', { name: 'chair' });
+
+    expect(seen[0].args.transform).toEqual({ position: [0, 1, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+  });
+
+  it('refuses when the app is not connected', async() =>
+  {
+    const result = await build_commit_object_result(host({}, [], false), commit_tasks(), '/project', { name: 'chair' });
+
+    expect(result.isError).toBe(true);
+    expect(text_of(result)).toContain('not connected');
+  });
+
+  it('explains an object that is not loaded', async() =>
+  {
+    const result = await build_commit_object_result(host({ get_object: new BridgeError('not_found', 'No object named chair') }), commit_tasks(), '/project', { name: 'chair' });
+
+    expect(result.isError).toBe(true);
+    expect(text_of(result)).toContain('Import it with import_model first');
+  });
+
+  it('refuses a malformed payload', async() =>
+  {
+    const result = await build_commit_object_result(host({ get_object: { position: 'x' } }), commit_tasks(), '/project', { name: 'chair' });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it('passes planner refusals and scaffolder errors through as errors', async() =>
+  {
+    const refused = await build_commit_object_result(host({ get_object: OBJECT }), commit_tasks({ error: new Error('HomeScene.ts is missing // __OBJECTS__') }), '/project', { name: 'chair' });
+    const failed = await build_commit_object_result(host({ get_object: OBJECT }), commit_tasks({ report: report({ applied: false, errors: ['anchor not found'] }) }), '/project', { name: 'chair' });
+
+    expect(refused.isError).toBe(true);
+    expect(text_of(refused)).toContain('Commit refused: HomeScene.ts is missing // __OBJECTS__');
+    expect(failed.isError).toBe(true);
+    expect(text_of(failed)).toContain('- anchor not found');
+  });
+});
+
+describe('register_import_tools', () =>
+{
+  it('registers both tools, with write-capable schemas', () =>
+  {
+    const schemas: Record<string, z.ZodRawShape> = {};
+    const server = { registerTool: (name: string, config: { inputSchema: z.ZodRawShape }) => { schemas[name] = config.inputSchema; } };
+
+    register_import_tools(server as never, {} as never, async() => ({}) as never, '/project');
+
+    expect(Object.keys(schemas)).toEqual(['import_model', 'commit_object']);
+    expect(z.object(schemas.import_model).safeParse({ source: '~/a.glb', tier: 'high', replace: true }).success).toBe(true);
+    expect(z.object(schemas.import_model).safeParse({ source: '~/a.glb', tier: 'medium' }).success).toBe(false);
+    expect(z.object(schemas.commit_object).safeParse({ name: 'chair', dry_run: true }).success).toBe(true);
+    expect(z.object(schemas.commit_object).safeParse({}).success).toBe(false);
   });
 });
