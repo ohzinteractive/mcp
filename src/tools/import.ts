@@ -84,13 +84,44 @@ function patched_a_manifest(report: ScaffoldReport): boolean
   return report.patched.some((entry) => entry.file.endsWith('_objects.js'));
 }
 
+// The app registers a view called 'transition' that shows while it loads, and
+// 'current_initial' is the view manager's state before any view is entered. A
+// preview loaded then lands in a scene the app replaces a moment later.
+const LOADING_VIEWS = new Set(['transition', 'current_initial']);
+
+async function app_is_loading(host: ImportHost): Promise<boolean>
+{
+  try
+  {
+    const status = await host.send('status') as { active_view?: unknown } | null;
+
+    return typeof status?.active_view === 'string' && LOADING_VIEWS.has(status.active_view);
+  }
+  catch
+  {
+    return true;
+  }
+}
+
 // Vite fully reloads the page when a manifest changes, which wipes the preview,
-// so the load has to wait for the new page to connect.
+// so the load has to wait for the new page to connect and to finish loading.
 async function wait_for_reload(host: ImportHost, generation: number, timing: ImportTiming): Promise<void>
 {
   const start = timing.now();
 
   while (host.generation === generation && timing.now() - start < RELOAD_WAIT_MS)
+  {
+    await timing.sleep(RELOAD_POLL_MS);
+  }
+
+  if (host.generation === generation)
+  {
+    return;
+  }
+
+  const reconnected = timing.now();
+
+  while (timing.now() - reconnected < RELOAD_WAIT_MS && await app_is_loading(host))
   {
     await timing.sleep(RELOAD_POLL_MS);
   }

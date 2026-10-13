@@ -206,7 +206,46 @@ describe('import_model and the Vite reload', () =>
 
     expect(timing.sleeps()).toBe(3);
     expect(timing.elapsed()).toBe(750);
-    expect(calls.map((call) => call.cmd)).toEqual(['load_object', 'capture_viewport']);
+    expect(calls.map((call) => call.cmd)).toEqual(['status', 'load_object', 'capture_viewport']);
+    expect(text_of(result)).toContain('loaded chair');
+  });
+
+  it('keeps waiting after the reconnect until the app has left its transition view', async() =>
+  {
+    const calls: Call[] = [];
+    const views = ['transition', 'transition', 'current_initial', 'home'];
+    const fake = host({ status: () => ({ active_view: views.shift() }), load_object: LOADED, capture_viewport: shot }, calls);
+    const timing = clock((count) => { if (count === 2) { fake.generation++; } });
+
+    const result = await build_import_model_result(fake, tasks({ report: report({ patched: [manifest_patch] }) }), '/project', { source: '/x.glb' }, timing);
+
+    expect(calls.map((call) => call.cmd)).toEqual(['status', 'status', 'status', 'status', 'load_object', 'capture_viewport']);
+    expect(timing.sleeps()).toBe(2 + 3);
+    expect(text_of(result)).toContain('loaded chair');
+  });
+
+  it('loads anyway when the app never leaves its transition view', async() =>
+  {
+    const calls: Call[] = [];
+    const fake = host({ status: { active_view: 'transition' }, load_object: LOADED, capture_viewport: shot }, calls);
+    const timing = clock((count) => { if (count === 1) { fake.generation++; } });
+
+    const result = await build_import_model_result(fake, tasks({ report: report({ patched: [manifest_patch] }) }), '/project', { source: '/x.glb' }, timing);
+
+    expect(timing.elapsed()).toBe(250 + 8000);
+    expect(calls.at(-2)?.cmd).toBe('load_object');
+    expect(text_of(result)).toContain('loaded chair');
+  });
+
+  it('keeps waiting while the status call fails during the reload', async() =>
+  {
+    const answers: unknown[] = [new BridgeError('disconnected', 'gone'), { active_view: 'home' }];
+    const fake = host({ status: () => answers.shift(), load_object: LOADED, capture_viewport: shot });
+    const timing = clock((count) => { if (count === 1) { fake.generation++; } });
+
+    const result = await build_import_model_result(fake, tasks({ report: report({ patched: [manifest_patch] }) }), '/project', { source: '/x.glb' }, timing);
+
+    expect(timing.sleeps()).toBe(2);
     expect(text_of(result)).toContain('loaded chair');
   });
 
