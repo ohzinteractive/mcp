@@ -6,7 +6,7 @@ const valid_hello = {
   event: 'hello',
   protocol: 1,
   app: {
-    core_version: '15.0.0',
+    core_version: '15.1.0',
     components_version: '4.1.0',
     pit_version: '5.0.4',
     active_view: 'home',
