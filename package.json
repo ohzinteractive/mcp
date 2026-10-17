@@ -15,7 +15,9 @@
     "start": "node build/server.js",
     "test": "vitest run",
     "test-watch": "vitest",
-    "fix-syntax": "npx eslint src --fix || echo 'Done.'"
+    "fix-syntax": "npx eslint src --fix || echo 'Done.'",
+    "create-tag": "node tasks/create_tag.mjs",
+    "upload": "yarn build && npm publish && yarn create-tag"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
