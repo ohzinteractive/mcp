@@ -5,10 +5,12 @@ import { BridgeHost } from './bridge/BridgeHost.js';
 import { ApiIndex } from './knowledge/ApiIndex.js';
 import { load_types } from './knowledge/load_types.js';
 import { resolve_port } from './config.js';
+import { load_core_tasks } from './knowledge/core_tasks.js';
 import { register_camera_tools } from './tools/camera.js';
 import { register_capture_tool } from './tools/capture.js';
 import { register_console_tool } from './tools/console.js';
 import { register_debug_tools } from './tools/debug.js';
+import { register_import_tools } from './tools/import.js';
 import { register_input_tools } from './tools/input.js';
 import { register_knowledge_tools } from './tools/knowledge.js';
 import { register_render_tools } from './tools/render.js';
@@ -36,6 +38,9 @@ async function main(): Promise<void>
   register_view_tools(server, host);
   register_debug_tools(server, host);
   register_input_tools(server, host);
+  // Reads and writes the consuming project, which is the working directory, the
+  // same root load_types reads its declarations from.
+  register_import_tools(server, host, () => load_core_tasks(process.cwd()), process.cwd());
 
   // Built lazily: reading a few hundred declaration files should not slow
   // startup for a session that never asks about the API. Read from the working

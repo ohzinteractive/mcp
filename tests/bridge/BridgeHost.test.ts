@@ -107,6 +107,31 @@ describe('BridgeHost handshake', () =>
   });
 });
 
+describe('BridgeHost generation', () =>
+{
+  it('starts at 0 and counts each accepted connection', async () =>
+  {
+    expect(host.generation).toBe(0);
+
+    await connect_valid_client();
+    expect(host.generation).toBe(1);
+
+    const first_closed = new Promise<void>((resolve) => sockets[0].once('close', () => resolve()));
+    await connect_valid_client();
+    await first_closed;
+    expect(host.generation).toBe(2);
+  });
+
+  it('does not count a refused hello', async () =>
+  {
+    const socket = await open_client();
+    socket.send(JSON.stringify({ event: 'hello', protocol: 99, app: app_payload }));
+    await next_message(socket);
+
+    expect(host.generation).toBe(0);
+  });
+});
+
 describe('BridgeHost send', () =>
 {
   it('resolves with the result matching the command id', async () =>
