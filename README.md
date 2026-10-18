@@ -59,7 +59,7 @@ The server is not on npm yet. Until it is, add it as a submodule, build it, and 
 
 ## Tools
 
-Twenty-eight tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
+Twenty-nine tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
 
 ### Status and observation
 
@@ -77,6 +77,7 @@ Twenty-eight tools, grouped below by what they touch. Every tool that changes so
 | `inspect_scene` | Walks the active scene: names, uuids, transforms, materials, vertex counts. Depth and node count are capped and truncation is reported. |
 | `get_object` | Full state of one object, by `uuid` or `name`. `uuid` wins when both are given, because names are not unique. |
 | `set_object` | Changes position, rotation, scale or visibility. Rotation is in radians. |
+| `set_material` | Changes color, roughness, metalness, emissive (plus `emissive_intensity`), opacity, transparency or wireframe, and returns the resulting values; pass only a selector to read them. Colors are sRGB hex. An object with a material keeps its children untouched; one without, such as an imported model root, has every material under it edited (up to 8 are listed in the result). Materials are shared by reference, so every mesh using one changes; the result says when, for the current scene. Fields a material lacks are skipped and reported. Opacity below 1 turns transparency on; `transparent: false` turns it back off. Live only: nothing is saved to code. |
 
 ### Camera
 

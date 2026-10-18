@@ -13,6 +13,7 @@ import { register_debug_tools } from './tools/debug.js';
 import { register_import_tools } from './tools/import.js';
 import { register_input_tools } from './tools/input.js';
 import { register_knowledge_tools } from './tools/knowledge.js';
+import { register_material_tools } from './tools/material.js';
 import { register_render_tools } from './tools/render.js';
 import { register_scaffold_tools } from './tools/scaffold.js';
 import { register_scene_tools } from './tools/scene.js';
@@ -34,6 +35,7 @@ async function main(): Promise<void>
   register_capture_tool(server, host);
   register_console_tool(server, host);
   register_scene_tools(server, host);
+  register_material_tools(server, host);
   register_camera_tools(server, host);
   register_render_tools(server, host);
   register_view_tools(server, host);
