@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CORE_TASKS_ENTRY, load_core_tasks } from '../../src/knowledge/core_tasks.js';
+import type { ScaffoldKind } from '../../src/knowledge/core_tasks.js';
+import { CORE_TASKS_ENTRY, SCAFFOLD_PLANNERS, load_core_tasks, load_scaffold_planner } from '../../src/knowledge/core_tasks.js';
 
 // This repo is the mcp submodule of the boilerplate. When it is checked out on
 // its own there is no core next to it, and the contract cannot be checked.
@@ -92,4 +93,26 @@ describe.skipIf(!has_core)('the real core import_model scaffolder', () =>
     expect(report.patched).toEqual([{ file: 'app/data/assets/home/home_objects.js', label: 'manifest entry for chair' }]);
     expect(planned.model).toMatchObject({ name: 'chair', url: '/models/chair.glb', draco: false, tier: 'regular' });
   });
+});
+
+describe.skipIf(!has_core)('the real core create_* scaffolders', () =>
+{
+  let project: string;
+
+  beforeEach(() => { project = mkdtempSync(join(tmpdir(), 'ohzi-contract-scaffold-')); });
+  afterEach(() => { rmSync(project, { recursive: true, force: true }); });
+
+  for (const kind of Object.keys(SCAFFOLD_PLANNERS) as ScaffoldKind[])
+  {
+    it(`${kind}: returns the report shape the mcp types promise`, async() =>
+    {
+      const plan = await load_scaffold_planner(boilerplate, kind);
+      const report = plan('probe', { root: project, dry_run: true }).run();
+
+      expect(Object.keys(report).sort()).toEqual(['applied', 'created', 'dry_run', 'errors', 'overwritten', 'patched', 'skipped']);
+      expect(report.dry_run).toBe(true);
+      expect(report.applied).toBe(false);
+      expect(report.created.length).toBeGreaterThan(0);
+    });
+  }
 });

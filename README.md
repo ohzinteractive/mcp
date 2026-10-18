@@ -12,6 +12,7 @@ It exists because the visual iteration loop is slow. Describing a WebGL bug in p
 "orbit to tilt 45, orientation 60, and show me"
 "turn on bloom and show me, then tell me the framerate"
 "what methods does CameraController have?"
+"scaffold a gallery view and take me there"
 ```
 
 ## Quick start
@@ -58,7 +59,7 @@ The server is not on npm yet. Until it is, add it as a submodule, build it, and 
 
 ## Tools
 
-Twenty-four tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
+Twenty-eight tools, grouped below by what they touch. Every tool that changes something accepts `capture: true`, which returns a screenshot of the result in the same call — ask it to do something and see the outcome without a second round trip.
 
 ### Status and observation
 
@@ -112,6 +113,17 @@ Twenty-four tools, grouped below by what they touch. Every tool that changes som
 |---|---|
 | `import_model` | Copies a local self-contained `.glb` into `public/models`, lists it in a scene's object manifest and loads it into the running app for preview, with a screenshot. Draco models work once `DracoInitializer` is enabled in `app/js/Api.ts` (without it the import is refused before anything is written); models that require meshopt or KTX2 are refused. Importing the identical file again only reloads the preview; a changed file under the same name needs `replace`. Writes project files. |
 | `commit_object` | Saves the live placement of an imported model as code: a wrapper class in `app/js/objects/` and the scene wiring at its `// __OBJECT_*__` markers. A later commit rewrites only the transform lines. Writes project files. |
+
+### Scaffolding
+
+These run the project's own scaffolders from `core/tasks/`, the same code as `yarn create-*`, so they need no running app. Each validates its whole plan before writing: a name that is taken, or an anchor that was edited away, refuses the call with nothing changed. Names are snake_case. Every one takes `dry_run: true` to preview the plan, and writes project files otherwise.
+
+| Tool | What it does |
+|---|---|
+| `create_view` | View, SceneController and TransitionController classes, a transition json, a pug template and a scss partial, wired into `Sections.ts`, `MainApplication.ts`, `default_state_data.js`, `index.pug` and `application.scss`. Open it with `go_to_view` once Vite has reloaded. |
+| `create_scene` | A scene class plus its regular and high tier object, sound and texture manifests. Registers nothing: a view's scene controller has to use it. |
+| `create_component` | A view component class, pug template and scss partial, wired into `MainApplication.ts`, `Components.ts`, `default_state_data.js`, `index.pug` and `application.scss`. |
+| `create_modal` | A modal state class, pug template and scss partial, registered in `ModalComponent.ts`, `modal.pug` and `application.scss`. |
 
 ### Input
 
@@ -216,6 +228,7 @@ Requires Node 20 or newer.
 | `src/tools/*.ts` | One file per tool family. `shared.ts` holds the common result helpers. |
 | `src/knowledge/ApiIndex.ts` | A hand-rolled `.d.ts` scanner — deliberately not the TypeScript compiler API, which would add roughly 20 MB to a published package. |
 | `src/knowledge/load_types.ts` | Reads `core/types`, `components/types` and `pit/types` from the consuming project. |
+| `src/knowledge/core_tasks.ts` | Loads the scaffolder planners (`plan_import_model`, `plan_view`, `plan_modal`, ...) from the consuming project's `core/tasks/`. |
 | `docs/` | The design spec and implementation plans. |
 
 Two rules when working in here:

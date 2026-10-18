@@ -6,7 +6,7 @@ import type { BridgeHost } from '../bridge/BridgeHost.js';
 import { LOAD_TIMEOUT_MS, PREVIEW_DEADLINE_MS, PREVIEW_RETRY_MS, RELOAD_POLL_MS, RELOAD_WAIT_MS } from '../config.js';
 import type { CoreTasks, ImportedModel, ScaffoldReport, Tier, Transform } from '../knowledge/core_tasks.js';
 import type { ImageBlock, TextBlock, ToolHost, ToolResult } from './shared.js';
-import { attach_capture, describe_error, failure, not_connected, triple } from './shared.js';
+import { attach_capture, describe_error, describe_report, failure, not_connected, triple } from './shared.js';
 
 export interface ImportModelToolArgs
 {
@@ -31,18 +31,6 @@ export function resolve_source(source: string, root: string, home: string = home
   }
 
   return isAbsolute(source) ? source : resolve(root, source);
-}
-
-export function describe_report(report: ScaffoldReport): string[]
-{
-  const verb = (done: string, planned: string) => (report.dry_run ? planned : done);
-
-  return [
-    ...report.created.map((file) => `${verb('created', 'would create')} ${file}`),
-    ...report.overwritten.map((file) => `${verb('overwrote', 'would overwrite')} ${file}`),
-    ...report.patched.map((entry) => `${verb('patched', 'would patch')} ${entry.file} (${entry.label})`),
-    ...report.skipped.map((entry) => `unchanged ${entry.file} (${entry.label}: ${entry.reason})`)
-  ];
 }
 
 function text(lines: string[]): ToolResult

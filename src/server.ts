@@ -5,7 +5,7 @@ import { BridgeHost } from './bridge/BridgeHost.js';
 import { ApiIndex } from './knowledge/ApiIndex.js';
 import { load_types } from './knowledge/load_types.js';
 import { resolve_port } from './config.js';
-import { load_core_tasks } from './knowledge/core_tasks.js';
+import { load_core_tasks, load_scaffold_planner } from './knowledge/core_tasks.js';
 import { register_camera_tools } from './tools/camera.js';
 import { register_capture_tool } from './tools/capture.js';
 import { register_console_tool } from './tools/console.js';
@@ -14,6 +14,7 @@ import { register_import_tools } from './tools/import.js';
 import { register_input_tools } from './tools/input.js';
 import { register_knowledge_tools } from './tools/knowledge.js';
 import { register_render_tools } from './tools/render.js';
+import { register_scaffold_tools } from './tools/scaffold.js';
 import { register_scene_tools } from './tools/scene.js';
 import { register_view_tools } from './tools/views.js';
 import { register_status_tool } from './tools/status.js';
@@ -41,6 +42,8 @@ async function main(): Promise<void>
   // Reads and writes the consuming project, which is the working directory, the
   // same root load_types reads its declarations from.
   register_import_tools(server, host, () => load_core_tasks(process.cwd()), process.cwd());
+  // The scaffolders only write files, so they work with the app closed.
+  register_scaffold_tools(server, (kind) => load_scaffold_planner(process.cwd(), kind), process.cwd());
 
   // Built lazily: reading a few hundred declaration files should not slow
   // startup for a session that never asks about the API. Read from the working

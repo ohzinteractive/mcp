@@ -1,5 +1,6 @@
 import type { BridgeHost } from '../bridge/BridgeHost.js';
 import { CAPTURE_TIMEOUT_MS } from '../config.js';
+import type { ScaffoldReport } from '../knowledge/core_tasks.js';
 
 export type ImageBlock = { type: 'image'; data: string; mimeType: string };
 export type TextBlock = { type: 'text'; text: string };
@@ -30,6 +31,18 @@ export function describe_error(error: unknown): string
   const message = details.message === undefined ? 'no message' : details.message;
 
   return `(${code}): ${message}`;
+}
+
+export function describe_report(report: ScaffoldReport): string[]
+{
+  const verb = (done: string, planned: string) => (report.dry_run ? planned : done);
+
+  return [
+    ...report.created.map((file) => `${verb('created', 'would create')} ${file}`),
+    ...report.overwritten.map((file) => `${verb('overwrote', 'would overwrite')} ${file}`),
+    ...report.patched.map((entry) => `${verb('patched', 'would patch')} ${entry.file} (${entry.label})`),
+    ...report.skipped.map((entry) => `unchanged ${entry.file} (${entry.label}: ${entry.reason})`)
+  ];
 }
 
 export function triple(value: unknown): string
