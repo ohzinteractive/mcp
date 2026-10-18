@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { BridgeError } from '../../src/bridge/BridgeError.js';
 import type { CoreTasks, ScaffoldReport } from '../../src/knowledge/core_tasks.js';
-import { build_commit_object_result, build_import_model_result, describe_report, register_import_tools, resolve_source } from '../../src/tools/import.js';
+import { build_commit_object_result, build_import_model_result, register_import_tools, resolve_source } from '../../src/tools/import.js';
+import { describe_report } from '../../src/tools/shared.js';
 
 interface Call { cmd: string; args?: Record<string, unknown>; timeout_ms?: number }
 

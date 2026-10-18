@@ -55,3 +55,37 @@ export async function load_core_tasks(root: string): Promise<CoreTasks>
 
   return module as CoreTasks;
 }
+
+export type ScaffoldKind = 'view' | 'scene' | 'component' | 'modal';
+
+export type ScaffoldPlanner = (name: string, options: PlanOptions) => Plan;
+
+// One module per scaffolder, each read from the project's core checkout like
+// the import_model entry. Loaded one at a time, so a core that predates one
+// scaffolder still serves the others.
+export const SCAFFOLD_PLANNERS: Record<ScaffoldKind, { entry: string; planner: string }> = {
+  view: { entry: 'core/tasks/create_view/create_view.mjs', planner: 'plan_view' },
+  scene: { entry: 'core/tasks/create_scene/create_scene.mjs', planner: 'plan_scene' },
+  component: { entry: 'core/tasks/create_component/create_component.mjs', planner: 'plan_component' },
+  modal: { entry: 'core/tasks/create_modal/create_modal.mjs', planner: 'plan_modal' }
+};
+
+export async function load_scaffold_planner(root: string, kind: ScaffoldKind): Promise<ScaffoldPlanner>
+{
+  const { entry, planner } = SCAFFOLD_PLANNERS[kind];
+  const path = join(root, entry);
+
+  if (!existsSync(path))
+  {
+    throw new Error(`No OHZI scaffolder at ${path}. create_${kind} needs the core submodule checked out with tasks/create_${kind}. Update the core submodule.`);
+  }
+
+  const module = await import(/* @vite-ignore */ pathToFileURL(path).href) as Record<string, unknown>;
+
+  if (typeof module[planner] !== 'function')
+  {
+    throw new Error(`${path} does not export ${planner}. Update the core submodule.`);
+  }
+
+  return module[planner] as ScaffoldPlanner;
+}
